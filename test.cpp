@@ -86,11 +86,14 @@ int main()
 {
     const char *path = strdup("./textfiles");
     DIR *i_dir;
-    std::thread T(FillMTable);
+    std::thread T1(FillMTable);
+    std::thread T3(FillMTable);
+    std::thread T2(FillMTable);
     i_dir = opendir("./textfiles");
     drnt = readdir(i_dir);
     closedir(i_dir);
-    ftw(path, [](const char *fpath, const struct stat *sb, int typeflag) { 
+    ftw(
+        path, [](const char *fpath, const struct stat *sb, int typeflag) { 
        if(typeflag==FTW_F)
         if(fnmatch("*.txt",fpath,FNM_CASEFOLD)==0)
             {
@@ -98,13 +101,25 @@ int main()
                 std::cout <<"\n main"<< fpath;
                 Queue.push(fpath);
                 Mutexobject.unlock();
-                std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                std::this_thread::sleep_for(std::chrono::milliseconds(20));
             }
        return 0; }, 16);
     isfinsih = true;
-    T.join();
-    for (auto c : Map)
+    T1.join();
+    T2.join();
+    T3.join();
+    std::multimap<int, std::string> multiMap;
+
+    std::map<std::string, int>::iterator it;
+    for (it = Map.begin(); it != Map.end(); it++)
+    {
+        multiMap.insert(make_pair(it->second, it->first));
+    }
+    int count = 0;
+    for (auto c : multiMap)
     {
         std::cout << c.first << " " << c.second << std::endl;
+        count = count + c.first;
     }
+    std::cout << "\n words : " << count;
 }
