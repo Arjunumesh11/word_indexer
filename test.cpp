@@ -1,3 +1,5 @@
+
+
 #include <iostream>
 #include <ftw.h>
 #include <dirent.h>
@@ -9,29 +11,33 @@
 #include <chrono>
 #include <fstream>
 #include <map>
+#include <condition_variable>
+
 std::queue<std::string> Queue;
 struct dirent *drnt;
 std::mutex Mutexobject; //queue
 std::mutex Mutexmap;    //map;
 bool isfinsih = false, isprocessing = true;
+std::map<std::string, int> Map;
+std::condition_variable condtion;
 
 std::string GetFilefrmQ()
 {
     std::string filename = "";
-    Mutexobject.lock();
-    if (!Queue.empty())
+    std::unique_lock<std::mutex> lock(Mutexobject);
+    if (Queue.empty())
     {
-        filename = Queue.front();
-        std::cout << std::endl
-                  << " queue " << filename;
-        Queue.pop();
+        condtion.wait(lock);
     }
-    Mutexobject.unlock();
+    filename = Queue.front();
+    std::cout << std::endl
+              << " queue " << filename;
+    Queue.pop();
+
     return filename;
 }
 void AddWordtoMTable(std::string str)
 {
-    std::map<std::string, int> Map;
 
     Mutexmap.lock();
     std::map<std::string, int>::iterator it = Map.find(str);
@@ -89,13 +95,9 @@ int main()
     const char *path = strdup("./textfiles");
     DIR *i_dir;
     std::thread T1(FillMTable);
-    T1.detach();
     std::thread T2(FillMTable);
-    T2.detach();
     std::thread T3(FillMTable);
-    T3.detach();
     std::thread T4(FillMTable);
-    T4.detach();
 
     i_dir = opendir("./textfiles");
     drnt = readdir(i_dir);
@@ -109,8 +111,9 @@ int main()
                 Mutexobject.lock();
             //    std::cout <<"\n main"<< fpath;
                 Queue.push(fpath);
+                condtion.notify_one();
                 Mutexobject.unlock();
-                 std::this_thread::sleep_for(std::chrono::milliseconds(20));
+                std::this_thread::sleep_for(std::chrono::milliseconds(20));
             }
        return 0; }, 16);
     isfinsih = true;
@@ -120,6 +123,10 @@ int main()
     auto stop = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
 
+    T1.join();
+    T2.join();
+    T3.join();
+    T4.join();
     std::multimap<int, std::string> multiMap;
 
     std::map<std::string, int>::iterator it;
@@ -133,6 +140,7 @@ int main()
         // std::cout << c.first << " " << c.second << std::endl;
         count = count + c.first;
     }
+
     std::cout << "\n words : " << count;
     std::cout << " Time taken by function: " << duration.count() << " milliseconds" << std::endl;
 }
